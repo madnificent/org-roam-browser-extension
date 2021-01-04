@@ -8,6 +8,7 @@ async function initializePageAction(tab) {
 
   const pageExists = body.pageExists;
   const linkExists = body.linkExists;
+  const parentKnown = body.parentKnown;
 
   let iconUrl;
   let title;
@@ -17,6 +18,9 @@ async function initializePageAction(tab) {
   } else if( linkExists ) {
     iconUrl = "org-roam-logo-has-link.svg";
     title = "Has link";
+  } else if( parentKnown ) {
+    iconUrl = "org-roam-logo-has-upper-reference.svg";
+    title = "Parent is known";
   } else {
     iconUrl = "org-roam-logo-inactive.svg";
     title = "Nothing found";
