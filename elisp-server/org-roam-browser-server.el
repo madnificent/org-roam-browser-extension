@@ -18,13 +18,15 @@
 (defun org-roam-browser-server--sub-urls (url)
   "Generate a list of sub-urls from URL."
   (when (string-prefix-p "//" url)
-    (reduce (lambda (acc val)
-              (let ((start (first acc)))
-                `(,(concat start val "/")
-                  ,(concat start val)
-                  ,@acc)))
-            (split-string (string-trim url "//") "/" "")
-            :initial-value '("//"))))))
+    (remove
+     "//"
+     (reduce (lambda (acc val)
+               (let ((start (first acc)))
+                 `(,(concat start val "/")
+                   ,(concat start val)
+                   ,@acc)))
+             (split-string (string-trim url "//") "/" "")
+             :initial-value '("//")))))
 ;; The elisp server:3 ends here
 
 ;; [[file:../README.org::*The elisp server][The elisp server:4]]

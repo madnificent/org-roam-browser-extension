@@ -179,13 +179,15 @@ captured information on a page in org-roam
      (defun org-roam-browser-server--sub-urls (url)
        "Generate a list of sub-urls from URL."
        (when (string-prefix-p "//" url)
-         (reduce (lambda (acc val)
-                   (let ((start (first acc)))
-                     `(,(concat start val "/")
-                       ,(concat start val)
-                       ,@acc)))
-                 (split-string (string-trim url "//") "/" "")
-                 :initial-value '("//"))))))
+         (remove
+          "//"
+          (reduce (lambda (acc val)
+                    (let ((start (first acc)))
+                      `(,(concat start val "/")
+                        ,(concat start val)
+                        ,@acc)))
+                  (split-string (string-trim url "//") "/" "")
+                  :initial-value '("//")))))
    #+end_src
 
    Next up we define two functions for checking if there are
@@ -261,4 +263,4 @@ captured information on a page in org-roam
   - [X] Add indication that a parent page was found in org-roam
   - [ ] Make port configurable
   - [ ] Release this on known platforms
-  - [ ] Check if WebExtension#browserAction would be nicer than WebExtension#pageActionp
+  - [ ] Check if WebExtension#browserAction would be nicer than WebExtension#pageAction
