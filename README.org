@@ -6,6 +6,8 @@ captured information on a page in org-roam
 * Using this addon
 
 ** Start the elisp webserver
+   Install the web-server package with ~M-x package-install web-server~.
+   
    Evaluate the [[./elisp-server/org-roam-browser-server.el]] file from this repository.
    
 ** Load the browser plugin
