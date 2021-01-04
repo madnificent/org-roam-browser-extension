@@ -15,17 +15,18 @@
     (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
     (process-send-string
      process
-     (let ((page-exists
-            (org-roam-db-query
-             [:select file :from refs
-                      :where (= ref $v1)]
-             (vector (cdr (assoc "url" headers)))))
-           (page-referenced
-            (org-roam-db-query [:select source :from links :where (= links:dest $s1)]
-                               (vector (cdr (assoc "url" headers))))))
-       (concat
-        "{\"pageExists\": " (if page-exists "true" "false") ",\n"
-        " \"linkExists\": " (if page-referenced "true" "false") "}")))))
+     (let ((url (cdr (assoc "url" headers))))
+       (let ((page-exists
+              (org-roam-db-query
+               [:select file :from refs
+                        :where (= ref $v1)]
+               (vector url)))
+             (page-referenced
+              (org-roam-db-query [:select source :from links :where (= links:dest $s1)]
+                                 (vector url))))
+         (concat
+          "{\"pageExists\": " (if page-exists "true" "false") ",\n"
+          " \"linkExists\": " (if page-referenced "true" "false") "}"))))))
 
 (provide 'org-roam-browser-server)
 ;;; org-roam-browser-server.el ends here
