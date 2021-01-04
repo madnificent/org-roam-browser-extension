@@ -206,7 +206,7 @@ captured information on a page in org-roam
   Obvious things that spring to mind:
   
   - [ ] Move stripping of protocol into elisp land
-  - [ ] Add icon to indicate a hyperlink to a page was found
+  - [X] Add icon to indicate a hyperlink to a page was found
   - [ ] Add action to show/create an org-roam page for the current site
   - [ ] Add indication that a parent page was found in org-roam
   - [ ] Make port configurable
