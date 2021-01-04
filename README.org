@@ -88,9 +88,21 @@ captured information on a page in org-roam
         const body = await fetched.json();
 
         const pageExists = body.pageExists;
+        const linkExists = body.linkExists;
 
-        const iconUrl = pageExists ? "org-roam-logo-active.svg" : "org-roam-logo-inactive.svg";
-        const title = pageExists ? "org-roam page available" : "No org-roam page available";
+        let iconUrl;
+        let title;
+        if( pageExists ) {
+          iconUrl = "org-roam-logo-has-page.svg";
+          title = "Has page";
+        } else if( linkExists ) {
+          iconUrl = "org-roam-logo-has-link.svg";
+          title = "Has link";
+        } else {
+          iconUrl = "org-roam-logo-inactive.svg";
+          title = "Nothing found";
+        }
+
         browser.pageAction.setIcon({ tabId: tab.id, path: iconUrl });
         browser.pageAction.setTitle({ tabId: tab.id, title });
         browser.pageAction.show(tab.id);
@@ -164,16 +176,21 @@ captured information on a page in org-roam
          (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
          (process-send-string
           process
-          (concat
-           "{\"pageExists\": "
-           (if
-               (org-roam-db-query
-                [:select file :from refs
-                 :where (= ref $v1)]
-                (vector (cdr (assoc "url" headers))))
-               "true" "false")
-           "}"))))
+          (let ((page-exists
+                 (org-roam-db-query
+                  [:select file :from refs
+                           :where (= ref $v1)]
+                  (vector (cdr (assoc "url" headers)))))
+                (page-referenced
+                 (org-roam-db-query [:select source :from links :where (= links:dest $s1)]
+                                    (cdr (assoc "url" headers)))))
+           (concat
+            "{\"pageExists\": " (if page-exists "true" "false") ",\n"
+            " \"linkExists\": " (if page-referenced "true" "false") "}")))))
    #+end_src
+
+   #+RESULTS:
+   : org-roam-server-handler
 
    And we end with providing this package:
 

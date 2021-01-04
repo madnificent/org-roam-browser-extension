@@ -7,9 +7,21 @@ async function initializePageAction(tab) {
   const body = await fetched.json();
 
   const pageExists = body.pageExists;
+  const linkExists = body.linkExists;
 
-  const iconUrl = pageExists ? "org-roam-logo-active.svg" : "org-roam-logo-inactive.svg";
-  const title = pageExists ? "org-roam page available" : "No org-roam page available";
+  let iconUrl;
+  let title;
+  if( pageExists ) {
+    iconUrl = "org-roam-logo-has-page.svg";
+    title = "Has page";
+  } else if( linkExists ) {
+    iconUrl = "org-roam-logo-has-link.svg";
+    title = "Has link";
+  } else {
+    iconUrl = "org-roam-logo-inactive.svg";
+    title = "Nothing found";
+  }
+
   browser.pageAction.setIcon({ tabId: tab.id, path: iconUrl });
   browser.pageAction.setTitle({ tabId: tab.id, title });
   browser.pageAction.show(tab.id);
