@@ -139,7 +139,7 @@ captured information on a page in org-roam
 
 ** The elisp server
    :PROPERTIES:
-   :header-args: :tangle ./elisp-server/org-roam-browser-server.el
+   :header-args: :tangle ./elisp-server/org-roam-browser-server.el :comments link
    :END:
    
    All elisp packages start with a prologue
