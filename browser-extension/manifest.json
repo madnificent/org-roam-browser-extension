@@ -1,0 +1,24 @@
+{
+  "manifest_version": 2,
+  "name": "org-roam monitor",
+  "version": "0.0.1",
+  "description": "Shows whether or not you have an org-roam page for the currently visited site.",
+  "icons": {
+    "48": "org-roam-logo.svg",
+    "96": "org-roam-logo.svg"
+  },
+
+  "background": {
+    "scripts": ["roam.js"]
+  },
+
+  "page_action": {
+    "default_icon": "org-roam-logo-inactive.svg",
+    "browser_style": true
+  },
+
+  "permissions": [
+    "activeTab",
+    "tabs"
+  ]
+}

@@ -1,0 +1,197 @@
+#+TITLE: Org-roam extension to the browser
+
+This browser plugin gives you the ability to display that you've
+captured information on a page in org-roam
+
+* Using this addon
+
+** Start the elisp webserver
+   Evaluate the [[./elisp-server/org-roam-browser-server.el]] file from this repository.
+   
+** Load the browser plugin
+   1. Open up Firefox
+   2. Browse to [[about:debugging]]
+   3. Click "This Firefox"
+   4. Click Load Temporary Add-on
+   5. Select the manifest or js file & enjoy the plugin
+
+* How this works
+  The plugin consists of two parts: a browser plugin and an elisp web
+  service.  They go hand-in-hand to supply the necessary information
+  to the browser.
+
+** Browser plugin
+   The browser plugin shows a pageAction to indicate whether we've
+   found links on the current page or not.
+
+   A browser plugin consists of a manifest file and a source-file.
+
+*** Manifest
+    The manifest file mainly supplies metadata of the browser plugin.
+    Most of this is metadata.  Note that we fetch the =tabs= and
+    =activeTab= permissions so we can figure out what URL the user is
+    browsing.
+
+    The logo we're using here is CC-by-SA and is included as such, it
+    was designed by @nobiot for org-roam.
+
+    #+begin_src json :tangle ./browser-extension/manifest.json
+      {
+        "manifest_version": 2,
+        "name": "org-roam monitor",
+        "version": "0.0.1",
+        "description": "Shows whether or not you have an org-roam page for the currently visited site.",
+        "icons": {
+          "48": "org-roam-logo.svg",
+          "96": "org-roam-logo.svg"
+        },
+
+        "background": {
+          "scripts": ["roam.js"]
+        },
+
+        "page_action": {
+          "default_icon": "org-roam-logo-inactive.svg",
+          "browser_style": true
+        },
+
+        "permissions": [
+          "activeTab",
+          "tabs"
+        ]
+      }
+    #+end_src
+
+*** Browser plugin implementation
+    :PROPERTIES:
+    :header-args: :tangle ./browser-extension/roam.js
+    :END:
+    
+    For each visible tab, whenever it is updated too, we want to
+    figure out what page we're visiting.
+
+    First thing we do is figure out the current URL.  We split off the
+    protocol because that's what roam does internally (this would
+    better be served in the elisp world and it may change).
+
+    Once we have that, we ask the org-roam backend server if there is
+    any info on the page.  If there is, then we render a positive
+    pageIcon, otherwise a negative one.
+
+    #+begin_src javascript
+      /**
+       ,* Initialize the page action: set icon and title, then show.
+       ,*/
+      async function initializePageAction(tab) {
+        const urlNoProtocol = tab.url.slice((new URL(tab.url)).protocol.length);
+        const fetched = await fetch(`http://localhost:10001/roam/info?url=${urlNoProtocol}`);
+        const body = await fetched.json();
+
+        const pageExists = body.pageExists;
+
+        const iconUrl = pageExists ? "org-roam-logo-active.svg" : "org-roam-logo-inactive.svg";
+        const title = pageExists ? "org-roam page available" : "No org-roam page available";
+        browser.pageAction.setIcon({ tabId: tab.id, path: iconUrl });
+        browser.pageAction.setTitle({ tabId: tab.id, title });
+        browser.pageAction.show(tab.id);
+      }
+    #+end_src
+
+    We need to ensure the above function is called whenever a tab is updated.
+
+    #+begin_src javascript
+      /**
+       ,*  Each time a tab is updated, reset the page action for that tab.
+       ,*/
+      browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
+        initializePageAction(tab);
+      });
+    #+end_src
+
+    We also want to update when we load this plugin for the first time.
+
+    #+begin_src javascript
+      /**
+       ,* When first loaded, initialize the page action for all tabs.
+       ,*/
+      browser
+        .tabs
+        .query({})
+        .then((tabs) => {
+          for (let tab of tabs) {
+            console.log("Initializing TAB");
+            initializePageAction(tab);
+          }
+        });
+    #+end_src
+
+** The elisp server
+   :PROPERTIES:
+   :header-args: :tangle ./elisp-server/org-roam-browser-server.el
+   :END:
+   
+   All elisp packages start with a prologue
+   #+begin_src emacs-lisp
+     ;;; org-roam-browser-server -- A package providing information to the browser on what you have stored in org-roam.
+
+     ;;; Commentary:
+     ;;;
+     ;;; More information at https://github.com/madnificent/org-roam-browser-server.git
+
+     ;;; Code:
+   #+end_src
+
+   Turns out there's a super simple emacs webserver we can use.  We
+   just open it on port 10001.
+
+   #+begin_src emacs-lisp
+     (ws-start
+      'org-roam-server-handler
+      10001)
+   #+end_src
+
+   The handler function is equally simple.  It receives the stripped
+   URL and just has to respond with wether we have info on this or
+   not.
+
+   We set the Access-Control-Allow-Origin header to indicate to the
+   browser that this API can be used from external sites (our addon
+   would otherwise not be allowed to load this resource).
+
+   #+begin_src emacs-lisp
+     (defun org-roam-server-handler (request)
+       (with-slots (process headers) request
+         (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
+         (process-send-string
+          process
+          (concat
+           "{\"pageExists\": "
+           (if
+               (org-roam-db-query
+                [:select file :from refs
+                 :where (= ref $v1)]
+                (vector (cdr (assoc "url" headers))))
+               "true" "false")
+           "}"))))
+   #+end_src
+
+   And we end with providing this package:
+
+   #+begin_src emacs-lisp
+     (provide 'org-roam-browser-server)
+     ;;; org-roam-browser-server.el ends here
+   #+end_src
+
+* Next steps
+  This is a PoC.  If we want it to stick around, it should evolve into
+  something more extensive.
+
+  Obvious things that spring to mind:
+  
+  - [ ] Move stripping of protocol into elisp land
+  - [ ] Add icon to indicate a hyperlink to a page was found
+  - [ ] Add action to show/create an org-roam page for the current site
+  - [ ] Add indication that a parent page was found in org-roam
+  - [ ] Make port configurable
+  - [ ] Release this on known platforms
+  - [ ] Check if WebExtension#browserAction would be nicer than WebExtension#pageActionp
