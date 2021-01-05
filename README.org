@@ -80,7 +80,12 @@ captured information on a page in org-roam
     any info on the page.  If there is, then we render a positive
     pageIcon, otherwise a negative one.
 
+    If there is a positive response, we'll also bind a click handler
+    to the pageAction so we can open up the page when it is clicked.
+
     #+begin_src javascript
+      const tabInfo = {};
+
       /**
        * Initialize the page action: set icon and title, then show.
        */
@@ -96,15 +101,15 @@ captured information on a page in org-roam
         let iconUrl;
         let title;
         let found;
-        if( pageExists ) {
+        if (pageExists) {
           iconUrl = "org-roam-logo-has-page.svg";
           title = "Has page";
           found = true;
-        } else if( linkExists ) {
+        } else if (linkExists) {
           iconUrl = "org-roam-logo-has-link.svg";
           title = "Has link";
           found = true;
-        } else if( parentKnown ) {
+        } else if (parentKnown) {
           iconUrl = "org-roam-logo-has-upper-reference.svg";
           title = "Parent is known";
           found = true;
@@ -114,13 +119,24 @@ captured information on a page in org-roam
           found = false;
         }
 
-        if( found ) {
+        if (found) {
           title += `: ${body.bestLink};`;
         }
-
         browser.pageAction.setIcon({ tabId: tab.id, path: iconUrl });
         browser.pageAction.setTitle({ tabId: tab.id, title });
         browser.pageAction.show(tab.id);
+
+        tabInfo[tab.id] = { link: body.bestLink };
+
+        browser.pageAction.onClicked.removeListener( clickEventListener );
+        browser.pageAction.onClicked.addListener( clickEventListener );
+      }
+
+      async function clickEventListener(tab) {
+        const link = tabInfo[tab.id]?.link;
+        if( link ) {
+          fetch(`http://localhost:10001/roam/open?page=${link}`);
+        }
       }
     #+end_src
 
@@ -168,103 +184,132 @@ captured information on a page in org-roam
      ;;; Code:
    #+end_src
 
-   Turns out there's a super simple emacs webserver we can use.  We
-   just open it on port 10001.
+   Turns out there's a super simple emacs webserver we can use.
 
-   #+begin_src emacs-lisp
-     (ws-start
-      'org-roam-server-handler
-      10001)
-   #+end_src
+*** Information requests
 
-   The handler function needs to look up a bunch of URLs.  To simplify
-   that, we draft a function to help split a URL in its interesting
-   parts.
+    The handler function needs to look up a bunch of URLs.  To simplify
+    that, we draft a function to help split a URL in its interesting
+    parts.
 
-   The funtion generates too much matches, but it's sufficient for our
-   current tests.
+    The funtion generates too much matches, but it's sufficient for our
+    current tests.
 
-   #+begin_src emacs-lisp
-     (defun org-roam-browser-server--sub-urls (url)
-       "Generate a list of sub-urls from URL."
-       (when (string-prefix-p "//" url)
-         (remove
-          "//"
-          (reduce (lambda (acc val)
-                    (let ((start (first acc)))
-                      `(,(concat start val "/")
-                        ,(concat start val)
-                        ,@acc)))
-                  (split-string (string-trim url "//") "/" "")
-                  :initial-value '("//")))))
-   #+end_src
+    #+begin_src emacs-lisp
+      (defun org-roam-browser-server--sub-urls (url)
+        "Generate a list of sub-urls from URL."
+        (when (string-prefix-p "//" url)
+          (remove
+           "//"
+           (reduce (lambda (acc val)
+                     (let ((start (first acc)))
+                       `(,(concat start val "/")
+                         ,(concat start val)
+                         ,@acc)))
+                   (split-string (string-trim url "//") "/" "")
+                   :initial-value '("//")))))
+    #+end_src
 
-   Next up we define two functions for checking if there are
-   interesting documents in the database.  One checks if one of an
-   array of links can be found, the second checks if a page with the
-   given reference exists.
+    Next up we define two functions for checking if there are
+    interesting documents in the database.  One checks if one of an
+    array of links can be found, the second checks if a page with the
+    given reference exists.
 
-   #+begin_src emacs-lisp
-     (defun org-roam-browser-server--reference-exists-as-key (&rest references)
-       "Verify if any of REFERENCES is known in org-roam."
-       (org-roam-db-query
-        [:select file :from refs
-         :where ref :in $v1]
-        (apply #'vector references)))
+    #+begin_src emacs-lisp
+      (defun org-roam-browser-server--reference-exists-as-key (&rest references)
+        "Verify if any of REFERENCES is known in org-roam."
+        (org-roam-db-query
+         [:select file :from refs
+          :where ref :in $v1]
+         (apply #'vector references)))
 
-     (defun org-roam-browser-server--reference-exists-as-link (&rest references)
-       "Verify if any of REFERENCES is referred to in org-roam."
-       (org-roam-db-query
-        [:select source
-         :from links
-         :where links:dest :in $v1]
-        (apply #'vector references)))
-   #+end_src
+      (defun org-roam-browser-server--reference-exists-as-link (&rest references)
+        "Verify if any of REFERENCES is referred to in org-roam."
+        (org-roam-db-query
+         [:select source
+          :from links
+          :where links:dest :in $v1]
+         (apply #'vector references)))
+    #+end_src
 
-   The handler function becomes simple.  It receives the stripped URL
-   and just has to respond with wether we have info on this or not.
+    The handler function becomes simple.  It receives the stripped URL
+    and just has to respond with wether we have info on this or not.
 
-   As an added complexity, it also checks if any of the parent URLs is
-   found or referenced, based on previous functions.
+    As an added complexity, it also checks if any of the parent URLs is
+    found or referenced, based on previous functions.
 
-   We set the Access-Control-Allow-Origin header to indicate to the
-   browser that this API can be used from external sites (our addon
-   would otherwise not be allowed to load this resource).
+    We set the Access-Control-Allow-Origin header to indicate to the
+    browser that this API can be used from external sites (our addon
+    would otherwise not be allowed to load this resource).
 
-   #+begin_src emacs-lisp
-     (defun org-roam-server-handler (request)
-       (with-slots (process headers) request
-         (condition-case ex
-             (let ((process-response
-                    (let ((url (cdr (assoc "url" headers))))
-                      (let ((page-exists (org-roam-browser-server--reference-exists-as-key url))
-                            (page-referenced (org-roam-browser-server--reference-exists-as-link url))
-                            (parent-known
-                             (let ((parent-list (org-roam-browser-server--sub-urls url)))
-                               (or (apply #'org-roam-browser-server--reference-exists-as-key parent-list)
-                                   (apply #'org-roam-browser-server--reference-exists-as-link parent-list)))))
-                        (concat
-                         "{\"pageExists\": " (if page-exists "true" "false") ",\n"
-                         " \"linkExists\": " (if page-referenced "true" "false") ",\n"
-                         " \"parentKnown\": " (if parent-known "true" "false") ",\n"
-                         " \"bestLink\": \"" (or (first (first page-exists)) (first (first page-referenced)) (first (first parent-known)) "false") "\"}")
-                         ))))
-               (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
-               (process-send-string process process-response))
-           ('error (backtrace)
-                   (ws-response-header process 500 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
-                   (process-send-string process "{\"error\": \"Error occurred when fetching result\" }")))))
-   #+end_src
+    #+begin_src emacs-lisp
+      (defun org-roam-browser-server--info-handler (request)
+        (with-slots (process headers) request
+          (condition-case ex
+              (let ((process-response
+                     (let ((url (cdr (assoc "url" headers))))
+                       (let ((page-exists (org-roam-browser-server--reference-exists-as-key url))
+                             (page-referenced (org-roam-browser-server--reference-exists-as-link url))
+                             (parent-known
+                              (let ((parent-list (org-roam-browser-server--sub-urls url)))
+                                (or (apply #'org-roam-browser-server--reference-exists-as-key parent-list)
+                                    (apply #'org-roam-browser-server--reference-exists-as-link parent-list)))))
+                         (let ((best-link (or (first (first page-exists)) (first (first page-referenced)) (first (first parent-known)))))
+                           (concat
+                            "{\"pageExists\": " (if page-exists "true" "false") ",\n"
+                            " \"linkExists\": " (if page-referenced "true" "false") ",\n"
+                            " \"parentKnown\": " (if parent-known "true" "false") ",\n"
+                            " \"bestLink\": " (if best-link
+                                                  (concat "\"" best-link "\"")
+                                                "false")
+                            "}"))
+                          ))))
+                (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
+                (process-send-string process process-response))
+            ('error (backtrace)
+                    (ws-response-header process 500 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
+                    (process-send-string process "{\"error\": \"Error occurred when fetching result\" }")))))
+    #+end_src
 
-   #+RESULTS:
-   : org-roam-server-handler
+    #+RESULTS:
+    : org-roam-server-handler
 
-   And we end with providing this package:
+    And we end with providing this package:
 
-   #+begin_src emacs-lisp
-     (provide 'org-roam-browser-server)
-     ;;; org-roam-browser-server.el ends here
-   #+end_src
+    #+begin_src emacs-lisp
+      (provide 'org-roam-browser-server)
+      ;;; org-roam-browser-server.el ends here
+    #+end_src
+
+*** Opening a file
+    Because we know the "best" match, we can open it when asked to do
+    so.  We expect the file to be opened will be stored in the file
+    parameter.
+
+    #+begin_src emacs-lisp
+      (defun org-roam-browser-server--open-handler (request)
+        (with-slots (process headers) request
+          (condition-case ex
+              (let ((page (cdr (assoc "page" headers))))
+                (message "Opening file %s" page)
+                (find-file-existing page)
+                (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
+                (process-send-string process "{ \"success\": true }"))
+            ('error (backtrace)
+                    (ws-response-header process 500 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
+                    (process-send-string process "{\"error\": \"Error occurred when trying to open file\"}")))))
+    #+end_src
+
+*** Booting up the server
+    We just open it on port 10001 and add two handlers.  One for
+    incoming information handlers and one for opening a file.
+
+    #+begin_src emacs-lisp
+      (ws-start
+       '(((:GET . "/roam/info") . org-roam-browser-server--info-handler)
+         ((:GET . "/roam/open") . org-roam-browser-server--open-handler))
+       10001)
+    #+end_src
 
 * Next steps
   This is a PoC.  If we want it to stick around, it should evolve into

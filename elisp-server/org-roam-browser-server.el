@@ -8,13 +8,7 @@
 ;;; Code:
 ;; The elisp server:1 ends here
 
-;; [[file:../README.org::*The elisp server][The elisp server:2]]
-(ws-start
- 'org-roam-server-handler
- 10001)
-;; The elisp server:2 ends here
-
-;; [[file:../README.org::*The elisp server][The elisp server:3]]
+;; [[file:../README.org::*Information requests][Information requests:1]]
 (defun org-roam-browser-server--sub-urls (url)
   "Generate a list of sub-urls from URL."
   (when (string-prefix-p "//" url)
@@ -27,9 +21,9 @@
                    ,@acc)))
              (split-string (string-trim url "//") "/" "")
              :initial-value '("//")))))
-;; The elisp server:3 ends here
+;; Information requests:1 ends here
 
-;; [[file:../README.org::*The elisp server][The elisp server:4]]
+;; [[file:../README.org::*Information requests][Information requests:2]]
 (defun org-roam-browser-server--reference-exists-as-key (&rest references)
   "Verify if any of REFERENCES is known in org-roam."
   (org-roam-db-query
@@ -44,10 +38,10 @@
     :from links
     :where links:dest :in $v1]
    (apply #'vector references)))
-;; The elisp server:4 ends here
+;; Information requests:2 ends here
 
-;; [[file:../README.org::*The elisp server][The elisp server:5]]
-(defun org-roam-server-handler (request)
+;; [[file:../README.org::*Information requests][Information requests:3]]
+(defun org-roam-browser-server--info-handler (request)
   (with-slots (process headers) request
     (condition-case ex
         (let ((process-response
@@ -58,21 +52,45 @@
                         (let ((parent-list (org-roam-browser-server--sub-urls url)))
                           (or (apply #'org-roam-browser-server--reference-exists-as-key parent-list)
                               (apply #'org-roam-browser-server--reference-exists-as-link parent-list)))))
-                   (concat
-                    "{\"pageExists\": " (if page-exists "true" "false") ",\n"
-                    " \"linkExists\": " (if page-referenced "true" "false") ",\n"
-                    " \"parentKnown\": " (if parent-known "true" "false") ",\n"
-                    " \"bestLink\": \"" (or (first (first page-exists)) (first (first page-referenced)) (first (first parent-known)) "false") "\"}")
+                   (let ((best-link (or (first (first page-exists)) (first (first page-referenced)) (first (first parent-known)))))
+                     (concat
+                      "{\"pageExists\": " (if page-exists "true" "false") ",\n"
+                      " \"linkExists\": " (if page-referenced "true" "false") ",\n"
+                      " \"parentKnown\": " (if parent-known "true" "false") ",\n"
+                      " \"bestLink\": " (if best-link
+                                            (concat "\"" best-link "\"")
+                                          "false")
+                      "}"))
                     ))))
           (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
           (process-send-string process process-response))
       ('error (backtrace)
               (ws-response-header process 500 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
               (process-send-string process "{\"error\": \"Error occurred when fetching result\" }")))))
+;; Information requests:3 ends here
 
-;; The elisp server:5 ends here
-
-;; [[file:../README.org::*The elisp server][The elisp server:6]]
+;; [[file:../README.org::*Information requests][Information requests:4]]
 (provide 'org-roam-browser-server)
 ;;; org-roam-browser-server.el ends here
-;; The elisp server:6 ends here
+;; Information requests:4 ends here
+
+;; [[file:../README.org::*Opening a file][Opening a file:1]]
+(defun org-roam-browser-server--open-handler (request)
+  (with-slots (process headers) request
+    (condition-case ex
+        (let ((page (cdr (assoc "page" headers))))
+          (message "Opening file %s" page)
+          (find-file-existing page)
+          (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
+          (process-send-string process "{ \"success\": true }"))
+      ('error (backtrace)
+              (ws-response-header process 500 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
+              (process-send-string process "{\"error\": \"Error occurred when trying to open file\"}")))))
+;; Opening a file:1 ends here
+
+;; [[file:../README.org::*Booting up the server][Booting up the server:1]]
+(ws-start
+ '(((:GET . "/roam/info") . org-roam-browser-server--info-handler)
+   ((:GET . "/roam/open") . org-roam-browser-server--open-handler))
+ 10001)
+;; Booting up the server:1 ends here

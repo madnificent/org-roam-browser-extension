@@ -1,4 +1,6 @@
 // [[file:../README.org::*Browser plugin implementation][Browser plugin implementation:1]]
+const tabInfo = {};
+
 /**
  * Initialize the page action: set icon and title, then show.
  */
@@ -14,15 +16,15 @@ async function initializePageAction(tab) {
   let iconUrl;
   let title;
   let found;
-  if( pageExists ) {
+  if (pageExists) {
     iconUrl = "org-roam-logo-has-page.svg";
     title = "Has page";
     found = true;
-  } else if( linkExists ) {
+  } else if (linkExists) {
     iconUrl = "org-roam-logo-has-link.svg";
     title = "Has link";
     found = true;
-  } else if( parentKnown ) {
+  } else if (parentKnown) {
     iconUrl = "org-roam-logo-has-upper-reference.svg";
     title = "Parent is known";
     found = true;
@@ -32,13 +34,24 @@ async function initializePageAction(tab) {
     found = false;
   }
 
-  if( found ) {
+  if (found) {
     title += `: ${body.bestLink};`;
   }
-
   browser.pageAction.setIcon({ tabId: tab.id, path: iconUrl });
   browser.pageAction.setTitle({ tabId: tab.id, title });
   browser.pageAction.show(tab.id);
+
+  tabInfo[tab.id] = { link: body.bestLink };
+
+  browser.pageAction.onClicked.removeListener( clickEventListener );
+  browser.pageAction.onClicked.addListener( clickEventListener );
+}
+
+async function clickEventListener(tab) {
+  const link = tabInfo[tab.id]?.link;
+  if( link ) {
+    fetch(`http://localhost:10001/roam/open?page=${link}`);
+  }
 }
 // Browser plugin implementation:1 ends here
 
