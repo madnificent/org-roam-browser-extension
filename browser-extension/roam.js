@@ -13,18 +13,27 @@ async function initializePageAction(tab) {
 
   let iconUrl;
   let title;
+  let found;
   if( pageExists ) {
     iconUrl = "org-roam-logo-has-page.svg";
     title = "Has page";
+    found = true;
   } else if( linkExists ) {
     iconUrl = "org-roam-logo-has-link.svg";
     title = "Has link";
+    found = true;
   } else if( parentKnown ) {
     iconUrl = "org-roam-logo-has-upper-reference.svg";
     title = "Parent is known";
+    found = true;
   } else {
     iconUrl = "org-roam-logo-inactive.svg";
     title = "Nothing found";
+    found = false;
+  }
+
+  if( found ) {
+    title += `: ${body.bestLink};`;
   }
 
   browser.pageAction.setIcon({ tabId: tab.id, path: iconUrl });

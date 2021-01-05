@@ -82,8 +82,8 @@ captured information on a page in org-roam
 
     #+begin_src javascript
       /**
-       ,* Initialize the page action: set icon and title, then show.
-       ,*/
+       * Initialize the page action: set icon and title, then show.
+       */
       async function initializePageAction(tab) {
         const urlNoProtocol = tab.url.slice((new URL(tab.url)).protocol.length);
         const fetched = await fetch(`http://localhost:10001/roam/info?url=${urlNoProtocol}`);
@@ -95,18 +95,27 @@ captured information on a page in org-roam
 
         let iconUrl;
         let title;
+        let found;
         if( pageExists ) {
           iconUrl = "org-roam-logo-has-page.svg";
           title = "Has page";
+          found = true;
         } else if( linkExists ) {
           iconUrl = "org-roam-logo-has-link.svg";
           title = "Has link";
+          found = true;
         } else if( parentKnown ) {
           iconUrl = "org-roam-logo-has-upper-reference.svg";
           title = "Parent is known";
+          found = true;
         } else {
           iconUrl = "org-roam-logo-inactive.svg";
           title = "Nothing found";
+          found = false;
+        }
+
+        if( found ) {
+          title += `: ${body.bestLink};`;
         }
 
         browser.pageAction.setIcon({ tabId: tab.id, path: iconUrl });
@@ -119,8 +128,8 @@ captured information on a page in org-roam
 
     #+begin_src javascript
       /**
-       ,*  Each time a tab is updated, reset the page action for that tab.
-       ,*/
+       *  Each time a tab is updated, reset the page action for that tab.
+       */
       browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
         initializePageAction(tab);
       });
@@ -130,8 +139,8 @@ captured information on a page in org-roam
 
     #+begin_src javascript
       /**
-       ,* When first loaded, initialize the page action for all tabs.
-       ,*/
+       * When first loaded, initialize the page action for all tabs.
+       */
       browser
         .tabs
         .query({})
