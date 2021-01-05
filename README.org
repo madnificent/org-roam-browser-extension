@@ -66,7 +66,7 @@ captured information on a page in org-roam
 
 *** Browser plugin implementation
     :PROPERTIES:
-    :header-args: :tangle ./browser-extension/roam.js
+    :header-args: :tangle ./browser-extension/roam.js :comments link
     :END:
     
     For each visible tab, whenever it is updated too, we want to

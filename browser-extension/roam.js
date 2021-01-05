@@ -1,3 +1,4 @@
+// [[file:../README.org::*Browser plugin implementation][Browser plugin implementation:1]]
 /**
  * Initialize the page action: set icon and title, then show.
  */
@@ -30,14 +31,18 @@ async function initializePageAction(tab) {
   browser.pageAction.setTitle({ tabId: tab.id, title });
   browser.pageAction.show(tab.id);
 }
+// Browser plugin implementation:1 ends here
 
+// [[file:../README.org::*Browser plugin implementation][Browser plugin implementation:2]]
 /**
  *  Each time a tab is updated, reset the page action for that tab.
  */
 browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
   initializePageAction(tab);
 });
+// Browser plugin implementation:2 ends here
 
+// [[file:../README.org::*Browser plugin implementation][Browser plugin implementation:3]]
 /**
  * When first loaded, initialize the page action for all tabs.
  */
@@ -50,3 +55,4 @@ browser
       initializePageAction(tab);
     }
   });
+// Browser plugin implementation:3 ends here
