@@ -35,7 +35,7 @@ captured information on a page in org-roam
     browsing.
 
     The logo we're using here is licensed under [[http://creativecommons.org/licenses/by-sa/4.0/][CC BY-SA 4.0]] and is included as such; it
-    was designed by [[https://github.com/zaeph][zaeph]] for the [[https://www.orgroam.com/][Org-roam project]], adapted by[[https://github.com/nobiot][nobiot]].
+    was designed by [[https://github.com/zaeph][zaeph]] for the [[https://www.orgroam.com/][Org-roam project]], adapted by [[https://github.com/nobiot][nobiot]].
 
     #+begin_src json :tangle ./browser-extension/manifest.json
       {
