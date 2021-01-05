@@ -49,20 +49,25 @@
 ;; [[file:../README.org::*The elisp server][The elisp server:5]]
 (defun org-roam-server-handler (request)
   (with-slots (process headers) request
-    (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
-    (process-send-string
-     process
-     (let ((url (cdr (assoc "url" headers))))
-       (let ((page-exists (org-roam-browser-server--reference-exists-as-key url))
-             (page-referenced (org-roam-browser-server--reference-exists-as-link url))
-             (parent-known
-              (let ((parent-list (org-roam-browser-server--sub-urls url)))
-                (or (apply #'org-roam-browser-server--reference-exists-as-key parent-list)
-                    (apply #'org-roam-browser-server--reference-exists-as-link parent-list)))))
-         (concat
-          "{\"pageExists\": " (if page-exists "true" "false") ",\n"
-          " \"linkExists\": " (if page-referenced "true" "false") ",\n"
-          " \"parentKnown\": " (if parent-known "true" "false") " }"))))))
+    (condition-case ex
+        (let ((process-response
+               (let ((url (cdr (assoc "url" headers))))
+                 (let ((page-exists (org-roam-browser-server--reference-exists-as-key url))
+                       (page-referenced (org-roam-browser-server--reference-exists-as-link url))
+                       (parent-known
+                        (let ((parent-list (org-roam-browser-server--sub-urls url)))
+                          (or (apply #'org-roam-browser-server--reference-exists-as-key parent-list)
+                              (apply #'org-roam-browser-server--reference-exists-as-link parent-list)))))
+                   (concat
+                    "{\"pageExists\": " (if page-exists "true" "false") ",\n"
+                    " \"linkExists\": " (if page-referenced "true" "false") ",\n"
+                    " \"parentKnown\": " (if parent-known "true" "false") " }")))))
+          (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
+          (process-send-string process process-response))
+      ('error (backtrace)
+              (ws-response-header process 500 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
+              (process-send-string process "{\"error\": \"Error occurred when fetching result\" }")))))
+
 ;; The elisp server:5 ends here
 
 ;; [[file:../README.org::*The elisp server][The elisp server:6]]
