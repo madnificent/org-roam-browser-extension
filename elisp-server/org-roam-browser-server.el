@@ -61,7 +61,9 @@
                    (concat
                     "{\"pageExists\": " (if page-exists "true" "false") ",\n"
                     " \"linkExists\": " (if page-referenced "true" "false") ",\n"
-                    " \"parentKnown\": " (if parent-known "true" "false") " }")))))
+                    " \"parentKnown\": " (if parent-known "true" "false") ",\n"
+                    " \"bestLink\": \"" (or (first (first page-exists)) (first (first page-referenced)) (first (first parent-known)) "false") "\"}")
+                    ))))
           (ws-response-header process 200 '("Content-type" . "application/json") '("Access-Control-Allow-Origin" . "*"))
           (process-send-string process process-response))
       ('error (backtrace)
