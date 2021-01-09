@@ -5,14 +5,17 @@ const tabInfo = {};
  * Initialize the page action: set icon and title, then show.
  */
 async function initializePageAction(tab) {
+  // Make information request over http
   const urlNoProtocol = tab.url.slice((new URL(tab.url)).protocol.length);
   const fetched = await fetch(`http://localhost:10001/roam/info?url=${urlNoProtocol}`);
   const body = await fetched.json();
 
+  // Extract information from request
   const pageExists = body.pageExists;
   const linkExists = body.linkExists;
   const parentKnown = body.parentKnown;
 
+  // set up information to be rendered for the icon
   let iconUrl;
   let title;
   let found;
@@ -37,10 +40,13 @@ async function initializePageAction(tab) {
   if (found) {
     title += `: ${body.bestLink};`;
   }
+
+  // attach information to the icon
   browser.pageAction.setIcon({ tabId: tab.id, path: iconUrl });
   browser.pageAction.setTitle({ tabId: tab.id, title });
   browser.pageAction.show(tab.id);
 
+  // enable click handler
   tabInfo[tab.id] = { link: body.bestLink };
 
   browser.pageAction.onClicked.removeListener( clickEventListener );
@@ -48,6 +54,9 @@ async function initializePageAction(tab) {
 }
 
 async function clickEventListener(tab) {
+  // the tab itself does not need to stay the same object, but the id
+  // is stable.  If a browser creates an infinite amount of tab ids,
+  // this would be a small memory leak.
   const link = tabInfo[tab.id]?.link;
   if( link ) {
     fetch(`http://localhost:10001/roam/open?page=${link}`);

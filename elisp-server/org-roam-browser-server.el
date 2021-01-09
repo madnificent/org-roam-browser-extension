@@ -27,7 +27,8 @@
 (defun org-roam-browser-server--reference-exists-as-key (&rest references)
   "Verify if any of REFERENCES is known in org-roam."
   (org-roam-db-query
-   [:select file :from refs
+   [:select file
+    :from refs
     :where ref :in $v1]
    (apply #'vector references)))
 
@@ -69,11 +70,6 @@
               (process-send-string process "{\"error\": \"Error occurred when fetching result\" }")))))
 ;; Information requests:3 ends here
 
-;; [[file:../README.org::*Information requests][Information requests:4]]
-(provide 'org-roam-browser-server)
-;;; org-roam-browser-server.el ends here
-;; Information requests:4 ends here
-
 ;; [[file:../README.org::*Opening a file][Opening a file:1]]
 (defun org-roam-browser-server--open-handler (request)
   (with-slots (process headers) request
@@ -94,3 +90,8 @@
    ((:GET . "/roam/open") . org-roam-browser-server--open-handler))
  10001)
 ;; Booting up the server:1 ends here
+
+;; [[file:../README.org::*Closing the sources][Closing the sources:1]]
+(provide 'org-roam-browser-server)
+;;; org-roam-browser-server.el ends here
+;; Closing the sources:1 ends here

@@ -1,14 +1,20 @@
 #+TITLE: Org-roam extension to the browser
 
 This browser plugin gives you the ability to display that you've
-captured information on a page in org-roam
+captured information on a page in org-roam and allows you to jump to
+the related page.
 
 * Using this addon
+  This addon is a work in progress.  Features may change, and APIs
+  have not stabilised yet.  It has not been published on MELPA nor has
+  a Firefox Addon been published.  Wiring it as we do for development
+  is not hard and can be found in this section.
 
 ** Start the elisp webserver
    Install the web-server package with ~M-x package-install web-server~.
    
-   Evaluate the [[./elisp-server/org-roam-browser-server.el]] file from this repository.
+   Evaluate the [[./elisp-server/org-roam-browser-server.el]] file from
+   this repository.  ~M-x eval-buffer~
    
 ** Load the browser plugin
    1. Open up Firefox
@@ -16,6 +22,14 @@ captured information on a page in org-roam
    3. Click "This Firefox"
    4. Click Load Temporary Add-on
    5. Select the manifest or js file & enjoy the plugin
+
+** See it in action
+   If you've visited a page on which you have made notes, either by
+   inserting the link to the page, or by having it as a ~ROAM_KEY~,
+   the icon next to the URL should change accordingly.
+
+   If the icon is not grayed out, you can click it to visit the notes
+   you've made on the current page.
 
 * How this works
   The plugin consists of two parts: a browser plugin and an elisp web
@@ -34,8 +48,10 @@ captured information on a page in org-roam
     =activeTab= permissions so we can figure out what URL the user is
     browsing.
 
-    The logo we're using here is licensed under [[http://creativecommons.org/licenses/by-sa/4.0/][CC BY-SA 4.0]] and is included as such; it
-    was designed by [[https://github.com/zaeph][zaeph]] for the [[https://www.orgroam.com/][Org-roam project]], adapted by [[https://github.com/nobiot][nobiot]].
+    The logo we're using here is licensed under [[http://creativecommons.org/licenses/by-sa/4.0/][CC BY-SA 4.0]] and is
+    included as such; it was designed by [[https://github.com/zaeph][zaeph]] for the [[https://www.orgroam.com/][Org-roam
+    project]], adapted by [[https://github.com/nobiot][nobiot]].  The logo is supplied as an SVG and
+    works in both 48x48px as well as 96x96px.
 
     #+begin_src json :tangle ./browser-extension/manifest.json
       {
@@ -87,17 +103,20 @@ captured information on a page in org-roam
       const tabInfo = {};
 
       /**
-       * Initialize the page action: set icon and title, then show.
-       */
+       ,* Initialize the page action: set icon and title, then show.
+       ,*/
       async function initializePageAction(tab) {
+        // Make information request over http
         const urlNoProtocol = tab.url.slice((new URL(tab.url)).protocol.length);
         const fetched = await fetch(`http://localhost:10001/roam/info?url=${urlNoProtocol}`);
         const body = await fetched.json();
 
+        // Extract information from request
         const pageExists = body.pageExists;
         const linkExists = body.linkExists;
         const parentKnown = body.parentKnown;
 
+        // set up information to be rendered for the icon
         let iconUrl;
         let title;
         let found;
@@ -122,10 +141,13 @@ captured information on a page in org-roam
         if (found) {
           title += `: ${body.bestLink};`;
         }
+
+        // attach information to the icon
         browser.pageAction.setIcon({ tabId: tab.id, path: iconUrl });
         browser.pageAction.setTitle({ tabId: tab.id, title });
         browser.pageAction.show(tab.id);
 
+        // enable click handler
         tabInfo[tab.id] = { link: body.bestLink };
 
         browser.pageAction.onClicked.removeListener( clickEventListener );
@@ -133,6 +155,9 @@ captured information on a page in org-roam
       }
 
       async function clickEventListener(tab) {
+        // the tab itself does not need to stay the same object, but the id
+        // is stable.  If a browser creates an infinite amount of tab ids,
+        // this would be a small memory leak.
         const link = tabInfo[tab.id]?.link;
         if( link ) {
           fetch(`http://localhost:10001/roam/open?page=${link}`);
@@ -219,7 +244,8 @@ captured information on a page in org-roam
       (defun org-roam-browser-server--reference-exists-as-key (&rest references)
         "Verify if any of REFERENCES is known in org-roam."
         (org-roam-db-query
-         [:select file :from refs
+         [:select file
+          :from refs
           :where ref :in $v1]
          (apply #'vector references)))
 
@@ -274,13 +300,6 @@ captured information on a page in org-roam
     #+RESULTS:
     : org-roam-server-handler
 
-    And we end with providing this package:
-
-    #+begin_src emacs-lisp
-      (provide 'org-roam-browser-server)
-      ;;; org-roam-browser-server.el ends here
-    #+end_src
-
 *** Opening a file
     Because we know the "best" match, we can open it when asked to do
     so.  We expect the file to be opened will be stored in the file
@@ -311,6 +330,14 @@ captured information on a page in org-roam
        10001)
     #+end_src
 
+*** Closing the sources
+    We end with providing this package:
+
+    #+begin_src emacs-lisp
+      (provide 'org-roam-browser-server)
+      ;;; org-roam-browser-server.el ends here
+    #+end_src
+
 * Next steps
   This is a PoC.  If we want it to stick around, it should evolve into
   something more extensive.
@@ -319,7 +346,8 @@ captured information on a page in org-roam
   
   - [ ] Move stripping of protocol into elisp land
   - [X] Add icon to indicate a hyperlink to a page was found
-  - [ ] Add action to show/create an org-roam page for the current site
+  - [X] Add action to open the org-roam page for the current site
+  - [ ] Add action to create an org-roam page for the current site
   - [X] Add indication that a parent page was found in org-roam
   - [ ] Make port configurable
   - [ ] Release this on known platforms
